@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, SafeAreaView, StatusBar, Modal, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, SafeAreaView, StatusBar, Modal, Alert, Animated } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import TransactionItem from '../components/TransactionItem';
 import { useFocusEffect } from '@react-navigation/native';
@@ -30,6 +30,8 @@ export default function CategoryScreen({ route, navigation }) {
   const [descriptionFocused, setDescriptionFocused] = useState(false);
   const [showValidationErrors, setShowValidationErrors] = useState(false);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [iconAnimation] = useState(new Animated.Value(1));
+  const [borderAnimation] = useState(new Animated.Value(0));
 
   // Available icons for selection
   const availableIcons = [
@@ -124,10 +126,52 @@ export default function CategoryScreen({ route, navigation }) {
     });
     setCategories(updatedCategories);
     setCurrentCategory({ ...currentCategory, icon: newIcon });
-    await AsyncStorage.setItem('categories', JSON.stringify(updatedCategories));
     setShowIconModal(false);
+    await AsyncStorage.setItem('categories', JSON.stringify(updatedCategories));
   };
 
+  // Animate icon when pressed
+  const animateIcon = () => {
+    Animated.sequence([
+      Animated.timing(iconAnimation, {
+        toValue: 1.2,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(iconAnimation, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const handleIconPress = () => {
+    animateIcon();
+    setShowIconModal(true);
+  };
+
+  // Start pulsing border effect when component mounts
+  useEffect(() => {
+    const startPulsing = () => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(borderAnimation, {
+            toValue: 1,
+            duration: 2000,
+            useNativeDriver: false,
+          }),
+          Animated.timing(borderAnimation, {
+            toValue: 0,
+            duration: 2000,
+            useNativeDriver: false,
+          }),
+        ])
+      ).start();
+    };
+    
+    startPulsing();
+  }, []);
 
 
   // Calculate category totals
@@ -163,9 +207,32 @@ export default function CategoryScreen({ route, navigation }) {
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <View style={styles.headerTopRow}>
-            <TouchableOpacity style={styles.iconButton} onPress={() => setShowIconModal(true)}>
-              <Text style={styles.categoryIcon}>{currentCategory?.icon || '📊'}</Text>
-            </TouchableOpacity>
+            <Animated.View style={[
+              styles.iconButton,
+              {
+                borderColor: borderAnimation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: ['#667eea', 'rgba(255, 255, 255, 0.8)']
+                }),
+                borderWidth: borderAnimation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [2, 3]
+                })
+              }
+            ]}>
+              <TouchableOpacity 
+                style={styles.iconTouchable} 
+                onPress={handleIconPress}
+                activeOpacity={0.7}
+              >
+                <Animated.Text style={[styles.categoryIcon, { transform: [{ scale: iconAnimation }] }]}>
+                  {currentCategory?.icon || '📊'}
+                </Animated.Text>
+              </TouchableOpacity>
+            </Animated.View>
+            
+            {/* Tooltip */}
+            {/* Removed as per edit hint */}
             <View style={styles.headerTextContainer}>
               <Text style={styles.headerTitle}>{categoryName}</Text>
               <Text style={styles.headerSubtitle}>{transactions.length} transactions</Text>
@@ -510,6 +577,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 15,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  iconTouchable: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   categoryIcon: {
     fontSize: 24,

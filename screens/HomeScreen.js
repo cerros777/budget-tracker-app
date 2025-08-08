@@ -1,19 +1,47 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar, ScrollView, Animated, Modal } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar, ScrollView, Animated, Modal, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import SpendingChart from '../components/SpendingChart';
 import { useFocusEffect } from '@react-navigation/native';
 
 export default function HomeScreen({ navigation }) {
+  // Helper function to get today's date in YYYY-MM-DD format
+  const getTodayDate = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const [categories, setCategories] = useState([]);
   const [newCategory, setNewCategory] = useState('');
   const [balanceAnimation] = useState(new Animated.Value(1));
   const [incomeAnimation] = useState(new Animated.Value(1));
   const [expenseAnimation] = useState(new Animated.Value(1));
   const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
+  const [showAddTransactionModal, setShowAddTransactionModal] = useState(false);
   const [selectedToggle, setSelectedToggle] = useState('income'); // 'income' or 'expense'
   const [selectedTimeFilter, setSelectedTimeFilter] = useState('month'); // 'month', 'week', 'today', 'all'
   const [showTimeFilterModal, setShowTimeFilterModal] = useState(false);
+  
+  // Add Transaction Modal State
+  const [transactionAmount, setTransactionAmount] = useState('');
+  const [transactionDescription, setTransactionDescription] = useState('');
+  const [transactionCategory, setTransactionCategory] = useState('');
+  const [transactionType, setTransactionType] = useState('expense');
+  const [transactionDate, setTransactionDate] = useState(getTodayDate());
+  const [showCategorySelector, setShowCategorySelector] = useState(false);
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [tooltipAnimation] = useState(new Animated.Value(0));
+  const [showIconSelector, setShowIconSelector] = useState(false);
+  const [selectedIcon, setSelectedIcon] = useState('📊');
+
+  // Available icons for selection
+  const availableIcons = [
+    '🍕', '🚗', '🎬', '🛍️', '🏥', '📚', '💰', '💼', '📈', '🎁', '🏠', '📄', 
+    '⛽', '☕', '💪', '📊', '🍔', '🎮', '✈️', '🏦', '💳', '🎵', '🎨'
+  ];
 
   useFocusEffect(
     useCallback(() => {
@@ -22,8 +50,41 @@ export default function HomeScreen({ navigation }) {
         if (data) setCategories(JSON.parse(data));
       };
       loadCategories();
+      checkFirstVisit();
     }, [])
   );
+
+  const checkFirstVisit = async () => {
+    try {
+      const hasSeenTooltip = await AsyncStorage.getItem('homeChartTooltipSeen');
+      if (!hasSeenTooltip) {
+        // Show tooltip after a short delay
+        setTimeout(() => {
+          setShowTooltip(true);
+          Animated.timing(tooltipAnimation, {
+            toValue: 1,
+            duration: 500,
+            useNativeDriver: true,
+          }).start();
+          
+          // Hide tooltip after 4 seconds
+          setTimeout(() => {
+            Animated.timing(tooltipAnimation, {
+              toValue: 0,
+              duration: 500,
+              useNativeDriver: true,
+            }).start(() => {
+              setShowTooltip(false);
+            });
+            // Mark as seen
+            AsyncStorage.setItem('homeChartTooltipSeen', 'true');
+          }, 4000);
+        }, 1000);
+      }
+    } catch (error) {
+      console.log('Error checking tooltip status:', error);
+    }
+  };
 
   useEffect(() => {
     AsyncStorage.setItem('categories', JSON.stringify(categories));
@@ -135,12 +196,55 @@ export default function HomeScreen({ navigation }) {
     const newCat = {
       id: Date.now().toString(),
       name: newCategory.trim(),
+      icon: selectedIcon,
       transactions: [],
     };
     const updatedCategories = [...currentCategories, newCat];
     setCategories(updatedCategories);
     setNewCategory('');
+    setSelectedIcon('📊'); // Reset to default icon
     setShowAddCategoryModal(false);
+    
+    // Navigate to the new category screen
+    navigation.navigate('Category', { 
+      categoryId: newCat.id, 
+      categoryName: newCat.name 
+    });
+  };
+
+  const addTransaction = async () => {
+    if (!transactionAmount.trim() || isNaN(Number(transactionAmount)) || Number(transactionAmount) < 0 || 
+        !transactionDescription.trim() || !transactionCategory) {
+      return;
+    }
+    
+    const newTxn = {
+      id: Date.now().toString(),
+      amount: parseFloat(transactionAmount),
+      description: transactionDescription.trim(),
+      date: transactionDate,
+      type: transactionType,
+    };
+    
+    const updatedCategories = categories.map(cat => {
+      if (cat.id === transactionCategory) {
+        return {
+          ...cat,
+          transactions: [...cat.transactions, newTxn]
+        };
+      }
+      return cat;
+    });
+    
+    setCategories(updatedCategories);
+    
+    // Reset form
+    setTransactionAmount('');
+    setTransactionDescription('');
+    setTransactionCategory('');
+    setTransactionType('expense');
+    setTransactionDate(getTodayDate());
+    setShowAddTransactionModal(false);
   };
 
   // Temporary function to reset onboarding (remove this in production)
@@ -262,6 +366,28 @@ export default function HomeScreen({ navigation }) {
 
         {/* Chart Section - Scrollable */}
         <View style={styles.chartSection}>
+          {/* Tooltip */}
+          {showTooltip && (
+            <Animated.View style={[
+              styles.tooltipContainer,
+              {
+                opacity: tooltipAnimation,
+                transform: [{
+                  translateY: tooltipAnimation.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [10, 0]
+                  })
+                }]
+              }
+            ]}>
+              <View style={styles.tooltipContent}>
+                <Text style={styles.tooltipIcon}>✋</Text>
+                <Text style={styles.tooltipText}>Toca los íconos para editar tus categorías</Text>
+              </View>
+              <View style={styles.tooltipArrow} />
+            </Animated.View>
+          )}
+          
           <SpendingChart 
             categories={categories} 
             timeFilter={selectedTimeFilter}
@@ -275,17 +401,18 @@ export default function HomeScreen({ navigation }) {
                 });
               }
             }}
+            onAddCategory={() => setShowAddCategoryModal(true)}
           />
         </View>
       </View>
 
-      {/* Add Category Section */}
+      {/* Add Transaction Section */}
       <View style={styles.addSection}>
         <TouchableOpacity 
-          style={styles.addButton} 
-          onPress={() => setShowAddCategoryModal(true)}
+          style={styles.addTransactionButton} 
+          onPress={() => setShowAddTransactionModal(true)}
         >
-          <Text style={styles.addButtonText}>+ Add Category</Text>
+          <Text style={styles.addTransactionButtonText}>+ Agregar Transacción</Text>
         </TouchableOpacity>
       </View>
 
@@ -313,6 +440,16 @@ export default function HomeScreen({ navigation }) {
               onChangeText={setNewCategory}
             />
             
+            {/* Icon Selection */}
+            <TouchableOpacity 
+              style={styles.iconSelector}
+              onPress={() => setShowIconSelector(true)}
+            >
+              <Text style={styles.iconSelectorIcon}>{selectedIcon}</Text>
+              <Text style={styles.iconSelectorText}>Seleccionar Ícono</Text>
+              <Text style={styles.iconSelectorArrow}>▼</Text>
+            </TouchableOpacity>
+            
             <View style={styles.modalActionContainer}>
               <TouchableOpacity 
                 style={styles.modalCancelButton}
@@ -331,6 +468,210 @@ export default function HomeScreen({ navigation }) {
                 <Text style={styles.modalConfirmButtonText}>Add Category</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Add Transaction Modal */}
+      <Modal
+        visible={showAddTransactionModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => {
+          setShowAddTransactionModal(false);
+          setTransactionAmount('');
+          setTransactionDescription('');
+          setTransactionCategory('');
+          setTransactionType('expense');
+          setTransactionDate(getTodayDate());
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Agregar Transacción</Text>
+              <TouchableOpacity onPress={() => setShowAddTransactionModal(false)}>
+                <Text style={styles.closeButton}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Monto..."
+              placeholderTextColor="#9ca3af"
+              value={transactionAmount}
+              onChangeText={(text) => {
+                const num = parseFloat(text);
+                if (text === '' || (num >= 0 && !isNaN(num))) {
+                  setTransactionAmount(text);
+                }
+              }}
+              keyboardType="numeric"
+            />
+            
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Descripción..."
+              placeholderTextColor="#9ca3af"
+              value={transactionDescription}
+              onChangeText={setTransactionDescription}
+              multiline
+              numberOfLines={3}
+            />
+            
+            {/* Category Selection */}
+            <TouchableOpacity 
+              style={styles.categorySelector}
+              onPress={() => setShowCategorySelector(true)}
+            >
+              <Text style={styles.categorySelectorText}>
+                {transactionCategory ? 
+                  categories.find(cat => cat.id === transactionCategory)?.name : 
+                  'Seleccionar Categoría *'
+                }
+              </Text>
+              <Text style={styles.categorySelectorIcon}>▼</Text>
+            </TouchableOpacity>
+            
+            {/* Date Selection */}
+            <TouchableOpacity 
+              style={styles.dateButton}
+              onPress={() => {
+                Alert.alert(
+                  'Seleccionar Fecha',
+                  'Elegir fecha',
+                  [
+                    {
+                      text: 'Hoy',
+                      onPress: () => setTransactionDate(getTodayDate())
+                    },
+                    {
+                      text: 'Ayer',
+                      onPress: () => {
+                        const yesterdayDate = new Date();
+                        yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+                        const year = yesterdayDate.getFullYear();
+                        const month = String(yesterdayDate.getMonth() + 1).padStart(2, '0');
+                        const day = String(yesterdayDate.getDate()).padStart(2, '0');
+                        setTransactionDate(`${year}-${month}-${day}`);
+                      }
+                    },
+                    {
+                      text: 'Cancelar',
+                      style: 'cancel'
+                    }
+                  ]
+                );
+              }}
+            >
+              <Text style={styles.dateButtonText}>{transactionDate}</Text>
+              <Text style={styles.dateButtonIcon}>📅</Text>
+            </TouchableOpacity>
+            
+            {/* Transaction Type */}
+            <View style={styles.modalTypeContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.modalTypeButton,
+                  transactionType === 'expense' && styles.modalTypeButtonActive
+                ]}
+                onPress={() => setTransactionType('expense')}
+              >
+                <Text style={styles.modalTypeIcon}>💸</Text>
+                <Text style={[styles.modalTypeButtonText, transactionType === 'expense' && styles.modalTypeButtonTextActive]}>
+                  Gasto
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modalTypeButton,
+                  transactionType === 'income' && styles.modalTypeButtonActive
+                ]}
+                onPress={() => setTransactionType('income')}
+              >
+                <Text style={styles.modalTypeIcon}>💰</Text>
+                <Text style={[styles.modalTypeButtonText, transactionType === 'income' && styles.modalTypeButtonTextActive]}>
+                  Ingreso
+                </Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.modalActionContainer}>
+              <TouchableOpacity 
+                style={styles.modalCancelButton}
+                onPress={() => {
+                  setShowAddTransactionModal(false);
+                  setTransactionAmount('');
+                  setTransactionDescription('');
+                  setTransactionCategory('');
+                  setTransactionType('expense');
+                  setTransactionDate(getTodayDate());
+                }}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modalConfirmButton, (!transactionAmount.trim() || isNaN(Number(transactionAmount)) || Number(transactionAmount) < 0 || !transactionDescription.trim() || !transactionCategory) && styles.modalConfirmButtonDisabled]} 
+                onPress={addTransaction}
+                disabled={!transactionAmount.trim() || isNaN(Number(transactionAmount)) || Number(transactionAmount) < 0 || !transactionDescription.trim() || !transactionCategory}
+              >
+                <Text style={styles.modalConfirmButtonText}>Agregar Transacción</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Category Selector Modal */}
+      <Modal
+        visible={showCategorySelector}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowCategorySelector(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.categorySelectorModal}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Seleccionar Categoría</Text>
+              <TouchableOpacity onPress={() => setShowCategorySelector(false)}>
+                <Text style={styles.closeButton}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            
+            {categories.length === 0 ? (
+              <View style={styles.emptyCategories}>
+                <Text style={styles.emptyCategoriesText}>
+                  No hay categorías. Crea una categoría primero.
+                </Text>
+                <TouchableOpacity 
+                  style={styles.createCategoryButton}
+                  onPress={() => {
+                    setShowCategorySelector(false);
+                    setShowAddCategoryModal(true);
+                  }}
+                >
+                  <Text style={styles.createCategoryButtonText}>
+                    Crear Categoría
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <ScrollView style={styles.categoryList}>
+                {categories.map(category => (
+                  <TouchableOpacity
+                    key={category.id}
+                    style={styles.categoryOption}
+                    onPress={() => {
+                      setTransactionCategory(category.id);
+                      setShowCategorySelector(false);
+                    }}
+                  >
+                    <Text style={styles.categoryOptionIcon}>{category.icon}</Text>
+                    <Text style={styles.categoryOptionText}>{category.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
           </View>
         </View>
       </Modal>
@@ -414,6 +755,46 @@ export default function HomeScreen({ navigation }) {
                 selectedTimeFilter === 'all' && styles.timeFilterOptionSelectedText
               ]}>All</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Icon Selector Modal */}
+      <Modal
+        visible={showIconSelector}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowIconSelector(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.iconSelectorModal}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Elegir Ícono</Text>
+              <TouchableOpacity onPress={() => setShowIconSelector(false)}>
+                <Text style={styles.closeButton}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView 
+              style={styles.iconGrid}
+              contentContainerStyle={styles.iconGridContent}
+            >
+              {availableIcons.map((icon, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.iconOption,
+                    selectedIcon === icon && styles.iconOptionSelected
+                  ]}
+                  onPress={() => {
+                    setSelectedIcon(icon);
+                    setShowIconSelector(false);
+                  }}
+                >
+                  <Text style={styles.iconOptionText}>{icon}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -774,5 +1155,314 @@ const styles = StyleSheet.create({
   timeFilterOptionSelectedText: {
     color: '#ffffff',
     fontWeight: '600',
+  },
+  transactionTypeSelector: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    marginBottom: 20,
+  },
+  transactionTypeButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  transactionTypeSelected: {
+    backgroundColor: '#667eea',
+    borderColor: '#667eea',
+  },
+  transactionTypeText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  categorySelectorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  categorySelectorLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#1e293b',
+    marginRight: 10,
+  },
+  categorySelectorButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+  },
+  categorySelectorText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#1e293b',
+    marginRight: 5,
+  },
+  categorySelectorIcon: {
+    fontSize: 16,
+    color: '#64748b',
+  },
+  categorySelectorItemSelected: {
+    backgroundColor: '#667eea',
+    borderColor: '#667eea',
+  },
+  categorySelectorItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  categorySelectorItemText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#1e293b',
+  },
+  addTransactionButton: {
+    backgroundColor: '#667eea',
+    padding: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  addTransactionButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  categorySelectorList: {
+    width: '100%',
+    maxHeight: 200,
+  },
+  categorySelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    marginBottom: 20,
+    width: '100%',
+  },
+  categorySelectorText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#1e293b',
+    marginRight: 5,
+  },
+  categorySelectorIcon: {
+    fontSize: 16,
+    color: '#64748b',
+  },
+  dateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    marginBottom: 20,
+    width: '100%',
+  },
+  dateButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#1e293b',
+  },
+  dateButtonIcon: {
+    fontSize: 20,
+    color: '#64748b',
+  },
+  modalTypeContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    marginBottom: 20,
+  },
+  modalTypeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  modalTypeButtonActive: {
+    backgroundColor: '#667eea',
+    borderColor: '#667eea',
+  },
+  modalTypeIcon: {
+    fontSize: 20,
+    marginRight: 5,
+  },
+  modalTypeButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  modalTypeButtonTextActive: {
+    color: '#ffffff',
+  },
+  categorySelectorModal: {
+    backgroundColor: '#ffffff',
+    borderRadius: 15,
+    padding: 25,
+    width: '80%',
+    alignItems: 'center',
+  },
+  categoryList: {
+    width: '100%',
+    maxHeight: 200,
+  },
+  categoryOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  categoryOptionIcon: {
+    fontSize: 24,
+    marginRight: 10,
+  },
+  categoryOptionText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#1e293b',
+  },
+  emptyCategories: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyCategoriesText: {
+    fontSize: 16,
+    color: '#64748b',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  createCategoryButton: {
+    backgroundColor: '#667eea',
+    padding: 12,
+    borderRadius: 10,
+  },
+  createCategoryButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  tooltipContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#667eea',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  tooltipContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  tooltipIcon: {
+    fontSize: 20,
+    marginRight: 5,
+    color: '#ffffff',
+  },
+  tooltipText: {
+    fontSize: 14,
+    color: '#ffffff',
+    fontWeight: '500',
+  },
+  tooltipArrow: {
+    position: 'absolute',
+    bottom: -5,
+    left: '50%',
+    width: 0,
+    height: 0,
+    borderLeftWidth: 5,
+    borderRightWidth: 5,
+    borderTopWidth: 10,
+    borderStyle: 'solid',
+    backgroundColor: 'transparent',
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: '#667eea',
+  },
+  iconSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    marginBottom: 20,
+    width: '100%',
+  },
+  iconSelectorIcon: {
+    fontSize: 24,
+    marginRight: 10,
+  },
+  iconSelectorText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#1e293b',
+    marginRight: 5,
+  },
+  iconSelectorArrow: {
+    fontSize: 16,
+    color: '#64748b',
+  },
+  iconSelectorModal: {
+    backgroundColor: '#ffffff',
+    borderRadius: 15,
+    padding: 25,
+    width: '80%',
+    alignItems: 'center',
+  },
+  iconGrid: {
+    width: '100%',
+  },
+  iconGridContent: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+  },
+  iconOption: {
+    width: '20%', // 5 icons per row instead of 4
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 2,
+    marginBottom: 10,
+  },
+  iconOptionText: {
+    fontSize: 24,
+    color: '#1e293b',
+  },
+  iconOptionSelected: {
+    backgroundColor: '#667eea',
+    borderRadius: 10,
   },
 }); 

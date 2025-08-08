@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Dimensions, TouchableOpacity, ScrollView, Modal
 
 const screenWidth = Dimensions.get('window').width;
 
-export default function SpendingChart({ categories, timeFilter, filterTransactionsByTime, onCategoryPress }) {
+export default function SpendingChart({ categories, timeFilter, filterTransactionsByTime, onCategoryPress, onAddCategory }) {
   const [tooltipVisible, setTooltipVisible] = useState(false);
   const [tooltipData, setTooltipData] = useState({ name: '', spending: 0, percentage: 0 });
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
@@ -129,6 +129,35 @@ export default function SpendingChart({ categories, timeFilter, filterTransactio
           })}
         </View>
       </ScrollView>
+      
+      {/* Add Category Button */}
+      <View style={styles.barItem}>
+        <View style={styles.barContent}>
+          <TouchableOpacity
+            onPress={onAddCategory}
+            style={styles.iconContainer}
+          >
+            <Text style={styles.barIcon}>+</Text>
+          </TouchableOpacity>
+          <View style={styles.barWrapper}>
+            <View style={styles.barHeader}>
+              <Text style={styles.barAmount}>Nueva Categoría</Text>
+              <Text style={styles.barPercentage}></Text>
+            </View>
+            <View style={styles.barContainer}>
+              <View 
+                style={[
+                  styles.bar, 
+                  { 
+                    width: '100%',
+                    backgroundColor: '#e0e7ff'
+                  }
+                ]} 
+              />
+            </View>
+          </View>
+        </View>
+      </View>
       
       {/* Tooltip Modal */}
       <Modal
