@@ -38,6 +38,28 @@ npx react-native run-android
 - Expo
 - AsyncStorage
 - React Navigation
+- Firebase Analytics (Android only)
+
+## Firebase Analytics
+
+This app includes Firebase Analytics integration for tracking user behavior and app usage. See [FIREBASE_SETUP.md](./FIREBASE_SETUP.md) for detailed setup instructions.
+
+### Quick Setup
+
+1. Create a Firebase project at [Firebase Console](https://console.firebase.google.com/)
+2. Add Android app with package name: `com.tuempresa.tuapp`
+3. Download `google-services.json` and place in project root
+4. Run `npm run android:debugview` to enable debug mode
+
+### Analytics Events
+
+The app tracks the following events:
+- Expense/Income additions
+- Transaction editing/deletion
+- Screen views
+- Onboarding completion
+- Category creation
+- Goal setting
 
 ## Development
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { trackExpenseEdited } from '../src/analytics/index.js';
 
 export default function EditTransactionScreen({ route, navigation }) {
   const { transaction, categoryId } = route.params;
@@ -61,6 +62,10 @@ export default function EditTransactionScreen({ route, navigation }) {
     });
 
     setCategories(updatedCategories);
+    
+    // Track analytics event
+    await trackExpenseEdited(transaction.id);
+    
     await AsyncStorage.setItem('categories', JSON.stringify(updatedCategories));
     navigation.goBack();
   };

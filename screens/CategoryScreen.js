@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, SafeArea
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import TransactionItem from '../components/TransactionItem';
 import { useFocusEffect } from '@react-navigation/native';
+import { trackExpenseAdded, trackExpenseDeleted } from '../src/analytics/index.js';
 
 export default function CategoryScreen({ route, navigation }) {
   const { categoryId, categoryName } = route.params;
@@ -77,6 +78,15 @@ export default function CategoryScreen({ route, navigation }) {
     });
     setCategories(updatedCategories);
     setTransactions([...transactions, newTxn]);
+    
+    // Track analytics event
+    await trackExpenseAdded({
+      amount: parseFloat(amount),
+      category: categoryName,
+      description: description.trim(),
+      date: selectedDate,
+    });
+    
     setAmount('');
     setDescription('');
     setSelectedDate(getTodayDate());
@@ -95,6 +105,10 @@ export default function CategoryScreen({ route, navigation }) {
       return cat;
     });
     setCategories(updatedCategories);
+    
+    // Track analytics event
+    await trackExpenseDeleted(transactionId);
+    
     await AsyncStorage.setItem('categories', JSON.stringify(updatedCategories));
   };
 

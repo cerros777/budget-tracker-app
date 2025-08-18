@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { trackCategoryCreated } from '../src/analytics/index.js';
 
 export default function CategorySetupScreen({ navigation }) {
   const [selectedCategories, setSelectedCategories] = useState([]);
@@ -60,6 +61,11 @@ export default function CategorySetupScreen({ navigation }) {
         icon: category.icon,
         transactions: [],
       }));
+      
+      // Track analytics for each category created
+      for (const category of selectedCategories) {
+        await trackCategoryCreated(category.name, category.icon);
+      }
       
       // Combine existing and new categories
       const updatedCategories = [...currentCategories, ...newCategories];

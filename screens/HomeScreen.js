@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, Stat
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import SpendingChart from '../components/SpendingChart';
 import { useFocusEffect } from '@react-navigation/native';
+import { trackExpenseAdded, trackIncomeAdded, trackSummaryViewed } from '../src/analytics/index.js';
 
 export default function HomeScreen({ navigation }) {
   // Helper function to get today's date in YYYY-MM-DD format
@@ -51,6 +52,9 @@ export default function HomeScreen({ navigation }) {
       };
       loadCategories();
       checkFirstVisit();
+      
+      // Track summary view when screen is focused
+      trackSummaryViewed();
     }, [])
   );
 
@@ -238,6 +242,24 @@ export default function HomeScreen({ navigation }) {
     
     setCategories(updatedCategories);
     
+    // Track analytics event based on transaction type
+    const selectedCategory = categories.find(cat => cat.id === transactionCategory);
+    if (transactionType === 'expense') {
+      await trackExpenseAdded({
+        amount: parseFloat(transactionAmount),
+        category: selectedCategory?.name || 'Unknown',
+        description: transactionDescription.trim(),
+        date: transactionDate,
+      });
+    } else {
+      await trackIncomeAdded({
+        amount: parseFloat(transactionAmount),
+        category: selectedCategory?.name || 'Unknown',
+        description: transactionDescription.trim(),
+        date: transactionDate,
+      });
+    }
+    
     // Reset form
     setTransactionAmount('');
     setTransactionDescription('');
@@ -245,15 +267,6 @@ export default function HomeScreen({ navigation }) {
     setTransactionType('expense');
     setTransactionDate(getTodayDate());
     setShowAddTransactionModal(false);
-  };
-
-  // Temporary function to reset onboarding (remove this in production)
-  const resetOnboarding = async () => {
-    await AsyncStorage.removeItem('onboardingComplete');
-    // Force app restart by clearing all data
-    await AsyncStorage.clear();
-    // You'll need to restart the app manually
-    alert('Onboarding reset! Please restart the app to see the onboarding flow again.');
   };
 
   const totals = calculateTotals();
@@ -266,13 +279,6 @@ export default function HomeScreen({ navigation }) {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>💰 Budget Tracker</Text>
         <Text style={styles.headerSubtitle}>Manage your finances</Text>
-        {/* Temporary reset button - remove in production */}
-        <TouchableOpacity 
-          style={styles.resetButton} 
-          onPress={resetOnboarding}
-        >
-          <Text style={styles.resetButtonText}>🔄 Reset Onboarding</Text>
-        </TouchableOpacity>
       </View>
 
       <View style={styles.mainContent}>
@@ -831,18 +837,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#e2e8f0',
     textAlign: 'center',
-  },
-  resetButton: {
-    backgroundColor: '#dc2626',
-    padding: 10,
-    borderRadius: 8,
-    alignSelf: 'center',
-    marginTop: 10,
-  },
-  resetButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: 'bold',
   },
   scrollView: {
     flex: 1,

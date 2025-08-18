@@ -10,6 +10,8 @@ import WelcomeScreen from './screens/WelcomeScreen';
 import GoalScreen from './screens/GoalScreen';
 import CategorySetupScreen from './screens/CategorySetupScreen';
 import SuccessScreen from './screens/SuccessScreen';
+import NavigationTracker from './src/analytics/NavigationTracker.js';
+import { trackOnboardingCompleted } from './src/analytics/index.js';
 
 const Stack = createNativeStackNavigator();
 
@@ -38,8 +40,10 @@ export default function App() {
     }
   };
 
-  const handleOnboardingComplete = () => {
+  const handleOnboardingComplete = async () => {
     setIsOnboardingComplete(true);
+    // Track onboarding completion
+    await trackOnboardingCompleted();
   };
 
   // Show loading screen while checking onboarding status
@@ -53,7 +57,8 @@ export default function App() {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator>
+      <NavigationTracker>
+        <Stack.Navigator>
         {!isOnboardingComplete ? (
           // Onboarding Flow
           <>
@@ -99,7 +104,8 @@ export default function App() {
             />
           </>
         )}
-      </Stack.Navigator>
+        </Stack.Navigator>
+      </NavigationTracker>
     </NavigationContainer>
   );
 }

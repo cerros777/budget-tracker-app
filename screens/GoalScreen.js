@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { trackGoalSet } from '../src/analytics/index.js';
 
 export default function GoalScreen({ navigation }) {
   const [selectedGoal, setSelectedGoal] = useState(null);
@@ -40,10 +41,14 @@ export default function GoalScreen({ navigation }) {
     setSelectedGoal(goal);
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (selectedGoal) {
       // Save goal to AsyncStorage
       AsyncStorage.setItem('userGoal', JSON.stringify(selectedGoal));
+      
+      // Track analytics event
+      await trackGoalSet(0, selectedGoal.id); // Using 0 as default amount since it's a goal type selection
+      
       navigation.navigate('CategorySetupScreen');
     }
   };
